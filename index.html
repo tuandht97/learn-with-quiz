@@ -27,7 +27,16 @@
       <label for="name">Chủ đề câu hỏi</label>
       <input type="text" id="myText">
       <label for="number">Số câu hỏi</label>
-      <input type="text" id="numberQuestion">
+      <div id="myBtnContainer">
+        <button class="btn active" id="numberQuestion5"> 5</button>
+        <button class="btn" id="numberQuestion10"> 10</button>
+        <button class="btn" id="numberQuestion15"> 15</button>
+      </div>
+      <label for="level">Độ khó</label>
+      <div id="myBtnContainer">
+        <button class="btn2 active"> Cơ bản</button>
+        <button class="btn2"> Nâng cao</button>
+      </div>
       <hr>
       <button id="start">Bắt đầu</button>
     </div>
@@ -94,7 +103,6 @@
     const endSound = new Audio("./assets/sfx/oh.mp3");
     const startSound = new Audio("./assets/sfx/start.mp3");
     const loadingDiv = document.getElementById('loading');
-    const numberQuestion = document.getElementById("numberQuestion");
     let questions = [];
 
     //* Initialize variables *\\
@@ -102,19 +110,51 @@
     let score = 0;
     let time = 60;
     let timer;
+    let numberQuestion = 5;
+    let level = "cơ bản";
 
     //* Add event listener to start button to begin the quiz *\\
     startButton.addEventListener("click", startQuiz);
     nextButton.addEventListener("click", nextQuestion);
 
+    var buttons = document.getElementsByClassName("btn");
+    for (var i = 0; i < buttons.length; i++) {
+      buttons[i].addEventListener("click", function () {
+        // Xóa lớp "active" khỏi tất cả các nút
+        for (var j = 0; j < buttons.length; j++) {
+          buttons[j].classList.remove("active");
+        }
+
+        // Thêm lớp "active" vào nút được nhấp vào
+        this.classList.add("active");
+
+        numberQuestion = this.textContent;
+      });
+    }
+
+    var button2s = document.getElementsByClassName("btn2");
+    for (var i = 0; i < button2s.length; i++) {
+      button2s[i].addEventListener("click", function () {
+        // Xóa lớp "active" khỏi tất cả các nút
+        for (var j = 0; j < button2s.length; j++) {
+          button2s[j].classList.remove("active");
+        }
+
+        // Thêm lớp "active" vào nút được nhấp vào
+        this.classList.add("active");
+
+        level = this.textContent;
+      });
+    }
+
     //* Function to start the quiz *\\
     async function startQuiz() {
       //* Get questions from Gemini *\\
       loadingDiv.style.display = 'block';
-      time = parseFloat(numberQuestion.value) * time;
+      time = parseFloat(numberQuestion) * time;
       const model = genAI.getGenerativeModel({ model: "gemini-pro" });
       const prompt = document.getElementById("myText").value;
-      const result = await model.generateContent("Tạo ra " + numberQuestion.value + " câu hỏi trắc nghiệm với chủ đề " + prompt + ", độ khó từ cơ bản đến nâng cao, ngoài chọn đáp án thì có chọn đúng sai. Đầu ra của đề bài chỉ là một mảng json với các đối tượng câu hỏi không cần tiêu đề giới thiệu. Đối tượng câu hỏi gồm 4 trường, trường question chứa nội dung câu hỏi, trường options chứa danh sách câu trả lời, trường correctAnswer chứa đáp án đúng, trường explain chứa giải thích cho đáp án đúng. Ví dụ một đối tượng câu hỏi: \n{ \"question\": \"Câu hỏi a?\", \"options\": [\"đáp án 1\", \"đáp án 2\", \"đáp án 3\", \"đáp án 4\"], \"correctAnswer\": \"đáp án 1\", \"explain\": \"giải thích cho đáp án đúng\" }");
+      const result = await model.generateContent("Tạo ra " + numberQuestion + " câu hỏi trắc nghiệm với chủ đề " + prompt + ", độ khó ở mức " + level + ", ngoài chọn đáp án thì có chọn đúng sai. Đầu ra của đề bài chỉ là một mảng json với các đối tượng câu hỏi không cần tiêu đề giới thiệu. Đối tượng câu hỏi gồm 4 trường, trường question chứa nội dung câu hỏi, trường options chứa danh sách câu trả lời, trường correctAnswer chứa đáp án đúng, trường explain chứa giải thích cho đáp án đúng. Ví dụ một đối tượng câu hỏi: \n{ \"question\": \"Câu hỏi a?\", \"options\": [\"đáp án 1\", \"đáp án 2\", \"đáp án 3\", \"đáp án 4\"], \"correctAnswer\": \"đáp án 1\", \"explain\": \"giải thích cho đáp án đúng\" }");
       const response = await result.response;
       let resultText = response.text();
       // console.log(resultText);
@@ -132,7 +172,7 @@
         showQuestion();
         startTimer();
       } catch (error) {
-        errorHandle();
+        errorHandle(error);
       }
 
     }
@@ -151,10 +191,9 @@
     }
 
     // Handle error
-    function errorHandle() {
+    function errorHandle(error) {
       alert("Đã có lỗi, trang sẽ tự động tải lại sau 3 giây!");
       console.error("Lỗi khi phân tích cú pháp JSON:", error);
-      sleep(3000);
       location.reload();
       loadingDiv.style.display = 'block';
     }
