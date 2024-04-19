@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en-gb">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+  <title>Coding Quiz</title>
+
+  <link rel="stylesheet" href="./assets/css/styles.css" />
+</head>
+
+<body>
+  <div class="scores"><a href="highscores.html">Bảng xếp hạng</a></div>
+
+  <div class="timer">Thời gian: <span id="time">0</span></div>
+
+  <div class="wrapper">
+    <div id="start-screen" class="start">
+      <h1>Coding Quiz Challenge</h1>
+      <p>
+        Try to answer the following code-related questions within the time
+        limit. Keep in mind that incorrect answers will penalize your
+        score/time by ten seconds!
+      </p>
+
+      <label for="name">Chủ đề câu hỏi</label>
+      <input type="text" id="myText">
+      <label for="number">Số câu hỏi</label>
+      <input type="text" id="numberQuestion">
+      <hr>
+      <button id="start">Bắt đầu</button>
+    </div>
+
+    <div id="loading" style="display: none;">
+      <div class="loader"></div>
+      <p>Đang chuẩn bị câu hỏi, vui lòng đợi...</p>
+    </div>
+
+    <div id="questions" class="hide">
+      <h2 id="question-title"></h2>
+      <div id="choices" class="choices"></div>
+    </div>
+
+    <div id="end-screen" class="hide">
+      <h2>Hoàn thành!</h2>
+      <p>Số câu trả lời đúng của bạn là: <span id="final-score"></span>.</p>
+      <p>
+        Nhập tên: <input type="text" id="initials" max="3" />
+        <button id="submit">Gửi</button>
+      </p>
+      <a href="index.html"><button>Quay lại</button></a>
+    </div>
+
+    <div id="feedback" class="feedback hide"></div>
+    <div id="explain" class="feedback hide"></div>
+    <button id="next" class="hide">Câu tiếp theo</button>
+  </div>
+
+  <script type="importmap">
+      {
+        "imports": {
+          "@google/generative-ai": "https://esm.run/@google/generative-ai"
+        }
+      }
+    </script>
+
+  <!-- <script src="./assets/javascript/questions.js"></script> -->
+  <!-- <script src="./assets/javascript/logic.js"></script> -->
+
+  <script type="module">
+    //* Import AI Gemini *\\
+    import { GoogleGenerativeAI } from "@google/generative-ai";
+
+    const API_KEY = "AIzaSyC5V4t2_VNXUQfNmwLyjWVln2ZcEIof6rA";
+    const genAI = new GoogleGenerativeAI(API_KEY);
+
+    //* Get references to HTML elements *\\
+    const startButton = document.getElementById("start");
+    const nextButton = document.getElementById("next");
+    const startScreen = document.getElementById("start-screen");
+    const timerElement = document.getElementById("time");
+    const questionsContainer = document.getElementById("questions");
+    const questionsTitle = document.getElementById("question-title");
+    const choicesContainer = document.getElementById("choices");
+    const endScreen = document.getElementById("end-screen");
+    const finalScore = document.getElementById("final-score");
+    const initials = document.getElementById("initials");
+    const submitButton = document.getElementById("submit");
+    const feedbackElement = document.getElementById("feedback");
+    const explainElement = document.getElementById("explain");
+    const correctSound = new Audio("./assets/sfx/correct.mp3");
+    const incorrectSound = new Audio("./assets/sfx/incorrect.mp3");
+    const endSound = new Audio("./assets/sfx/oh.mp3");
+    const startSound = new Audio("./assets/sfx/start.mp3");
+    const loadingDiv = document.getElementById('loading');
+    const numberQuestion = document.getElementById("numberQuestion");
+    let questions = [];
+
+    //* Initialize variables *\\
+    let currentQuestionIndex = 0;
+    let score = 0;
+    let time = 60;
+    let timer;
+
+    //* Add event listener to start button to begin the quiz *\\
+    startButton.addEventListener("click", startQuiz);
+    nextButton.addEventListener("click", nextQuestion);
+
+    //* Function to start the quiz *\\
+    async function startQuiz() {
+      //* Get questions from Gemini *\\
+      loadingDiv.style.display = 'block';
+      time = parseFloat(numberQuestion.value) * time;
+      const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+      const prompt = document.getElementById("myText").value;
+      const result = await model.generateContent("Tạo ra " + numberQuestion.value + " câu hỏi trắc nghiệm với chủ đề " + prompt + ", độ khó từ cơ bản đến nâng cao, ngoài chọn đáp án thì có chọn đúng sai. Đầu ra của đề bài chỉ là một mảng json với các đối tượng câu hỏi không cần tiêu đề giới thiệu. Đối tượng câu hỏi gồm 4 trường, trường question chứa nội dung câu hỏi, trường options chứa danh sách câu trả lời, trường correctAnswer chứa đáp án đúng, trường explain chứa giải thích cho đáp án đúng. Ví dụ một đối tượng câu hỏi: \n{ \"question\": \"Câu hỏi a?\", \"options\": [\"đáp án 1\", \"đáp án 2\", \"đáp án 3\", \"đáp án 4\"], \"correctAnswer\": \"đáp án 1\", \"explain\": \"giải thích cho đáp án đúng\" }");
+      const response = await result.response;
+      let resultText = response.text();
+      // console.log(resultText);
+      // console.log(removeOuterBrackets(resultText));
+
+      try {
+        questions = JSON.parse(removeOuterBrackets(resultText));
+        loadingDiv.style.display = 'none';
+        //* Hide start screen and show questions *\\
+        startScreen.classList.add("hide");
+        questionsContainer.classList.remove("hide");
+        startButton.classList.remove("hide");
+        nextButton.classList.remove("hide");
+        startSound.play();
+        showQuestion();
+        startTimer();
+      } catch (error) {
+        errorHandle();
+      }
+
+    }
+
+    // Format string
+    function removeOuterBrackets(str) {
+      let startIndex = str.indexOf('[');
+      let endIndex = str.lastIndexOf(']');
+
+      if (startIndex === -1 || endIndex === -1) {
+        // Không tìm thấy dấu '[' hoặc ']'
+        errorHandle();
+      }
+
+      return str.slice(startIndex, endIndex + 1).trim();
+    }
+
+    // Handle error
+    function errorHandle() {
+      alert("Đã có lỗi, trang sẽ tự động tải lại sau 3 giây!");
+      console.error("Lỗi khi phân tích cú pháp JSON:", error);
+      sleep(3000);
+      location.reload();
+      loadingDiv.style.display = 'block';
+    }
+
+    //* Function to display a question *\\
+    function showQuestion() {
+      //* Retrieve current question and options *\\
+      const { question, options } = questions[currentQuestionIndex];
+      //* Display question title *\\
+      questionsTitle.innerText = currentQuestionIndex + ". " + question;
+      //* Clear previous choices *\\
+      choicesContainer.innerHTML = '';
+      //* Create buttons for each option *\\
+      options.forEach((option, i) => {
+        const button = document.createElement("button");
+        button.innerText = option;
+        button.classList.add("choice-btn");
+        //* Add event listener to check answer when button is clicked *\\
+        button.addEventListener("click", () => checkAnswer(i));
+        choicesContainer.appendChild(button);
+      });
+    }
+
+    //* Function to check selected answer *\\
+    function checkAnswer(index) {
+      const { options, correctAnswer, explain } = questions[currentQuestionIndex];
+      if (options[index] === correctAnswer) {
+        score++;
+        correctSound.play();
+        showFeedback(correctAnswer);
+        showExplain(explain);
+      } else {
+        // time -= 10;
+        incorrectSound.play();
+        showFeedback(correctAnswer);
+        showExplain(explain);
+      }
+
+      feedbackElement.classList.remove("hide");
+      explainElement.classList.remove("hide");
+    }
+
+    function nextQuestion() {
+      //* Move to next question*\\
+      if (++currentQuestionIndex < questions.length) {
+        showQuestion();
+      } else {
+        nextButton.classList.add("hide");
+        endQuiz();
+      }
+
+      showFeedback("");
+      showExplain("");
+    }
+
+    //* Function to start timer *\\
+    function startTimer() {
+      timer = setInterval(() => {
+        if (time <= 0) {
+          nextButton.classList.add("hide");
+          endQuiz();
+        } else {
+          timerElement.textContent = time--;
+        }
+      }, 1000);
+    }
+
+    //* Function to end the quiz *\\
+    function endQuiz() {
+      endSound.play();
+      clearInterval(timer);
+      questionsContainer.classList.add("hide");
+      endScreen.classList.remove("hide");
+      feedbackElement.classList.add("hide");
+      explainElement.classList.add("hide");
+      finalScore.innerText = score;
+    }
+
+    //* Function to display feedback *\\
+    function showFeedback(message) {
+      feedbackElement.innerText = "Đáp án: " + message;
+    }
+
+    //* Function to display explain *\\
+    function showExplain(message) {
+      explainElement.innerText = "Giải thích: " + message;
+    }
+
+    //* Add event listener to submit button to save user initials and score, and redirect to highscores page *\\
+    submitButton.addEventListener("click", () => {
+      localStorage.setItem("initial", initials.value);
+      localStorage.setItem("score", score);
+      location.href = "highscores.html";
+    });
+  </script>
+</body>
+
+</html>
